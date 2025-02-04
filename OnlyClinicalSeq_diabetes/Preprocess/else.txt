@@ -1,0 +1,10 @@
+
+# t-검정 수행
+ttest_results = []
+
+for feature in domain.columns:
+    _, p_value = ttest_ind(domain[domain["mortality"]==0][feature], domain[domain["mortality"]==1][feature])
+    # if p_value < 0.05:
+    ttest_results.append([feature, domain[domain["mortality"]==0][feature].mean(), domain[domain["mortality"]==1][feature].mean(), p_value])
+pd.DataFrame(ttest_results).to_csv(f"{args['domain'][idx]}.csv", index=False) 
+        
