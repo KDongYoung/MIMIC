@@ -86,28 +86,23 @@ def dl_infinite_loader(train_dataset, test_set, args):
     train_splits = [] # TRAIN SET
     valid_splits = [] # VALID SET
     holdout_fraction = 0.1 # train:valid = 9:1
-
-    for _, env in enumerate(train_dataset): # train_dataset, dataset
-        if args["class_balance"]:
-            valid_set, train_set = class_split_dataset(env, args['n_classes'], holdout_fraction, args['seed']) 
-        else:
-            valid_set, train_set = split_dataset_ratio(env, holdout_fraction, args['seed']) 
-            
-        # for class balance
-        train_set_weights = make_weights_for_balanced_classes(train_set)
-        valid_set_weights = make_weights_for_balanced_classes(valid_set)
-        train_splits.append((train_set, train_set_weights))
-        valid_splits.append((valid_set, valid_set_weights))
-            
-    holdout_fraction = 0.1 # train:valid = 9:1
     
-    ### subject wise loader
-    train_loaders = [InfiniteDataLoader(
-                        dataset=env,
-                        weights=env_weights,
-                        batch_size=args['batch_size'],
-                        num_workers=args['num_workers'])
-                    for _, (env, env_weights) in enumerate(train_splits)] # make a train loader for each source subject 
+    for _, env in enumerate(train_dataset): # train_dataset, dataset
+        valid_set, train_set = split_dataset_ratio(env, holdout_fraction, args['seed']) 
+            
+        train_splits.append(train_set)
+        valid_splits.append(valid_set)
+       
+    ### loader
+    train_set = torch.utils.data.ConcatDataset(train_splits)
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=args['batch_size'], 
+                                            shuffle=True, pin_memory=True, 
+                                            num_workers=args['num_workers'])
+    
+    valid_set = torch.utils.data.ConcatDataset(valid_set)
+    valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=args['valid_batch_size'], 
+                                            shuffle=False, pin_memory=True, 
+                                            num_workers=args['num_workers'])
 
     valid_set = torch.utils.data.ConcatDataset([env for _, (env, _) in enumerate(valid_splits)])
     valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=args['valid_batch_size'],
@@ -119,46 +114,70 @@ def dl_infinite_loader(train_dataset, test_set, args):
                                             shuffle=False, pin_memory=True, 
                                             num_workers=args['num_workers']) # test loader
             
-    return train_loaders, valid_loader, test_loader
+    return train_loader, valid_loader, test_loader
 
-def dl_loader(train_dataset, test_set, args):
+def dl_loader(train_dataset, valid_set, test_set, args):
     # in_split: train set / out_split: val set
     train_splits = [] # TRAIN SET
     valid_splits = [] # VALID SET
-    holdout_fraction = 0.1 # train:valid = 9:1
-
-    for _, env in enumerate(train_dataset): # train_dataset, dataset
-        if args["class_balance"]:
-            valid_set, train_set = class_split_dataset(env, args['n_classes'], holdout_fraction, args['seed']) 
-        else:
-            valid_set, train_set = split_dataset_ratio(env, holdout_fraction, args['seed']) 
-            
-        # for class balance
-        train_set_weights = make_weights_for_balanced_classes(train_set)
-        valid_set_weights = make_weights_for_balanced_classes(valid_set)
-        train_splits.append((train_set, train_set_weights))
-        valid_splits.append((valid_set, valid_set_weights))
-                
+    
     ### loader
-    sampler = torch.utils.data.WeightedRandomSampler([weights for (_, weights) in train_splits], 
-                                                     replacement=True, 
-                                                     num_samples=args['batch_size'])
-    train_set = torch.utils.data.ConcatDataset([env for (env, _) in train_splits])
+    train_set = torch.utils.data.ConcatDataset([train_set])
     train_loaders = torch.utils.data.DataLoader(train_set, batch_size=args['batch_size'],
-                                            shuffle=True, pin_memory=True, sampler=sampler, 
+                                            shuffle=True, pin_memory=True, 
                                             num_workers=args['num_workers']) # valid loader
 
-    valid_set = torch.utils.data.ConcatDataset([env for (env, _) in enumerate(valid_splits)])
+    valid_set = torch.utils.data.ConcatDataset([valid_set])
     valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=args['valid_batch_size'],
                                             shuffle=False, pin_memory=True, 
                                             num_workers=args['num_workers']) # valid loader
     
-    test_set = torch.utils.data.ConcatDataset(test_set)
+    test_set = torch.utils.data.ConcatDataset([test_set])
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=args['test_batch_size'], 
                                             shuffle=False, pin_memory=True, 
                                             num_workers=args['num_workers']) # test loader
             
     return train_loaders, valid_loader, test_loader
+
+
+# def dl_loader(train_dataset, test_set, args):
+#     # in_split: train set / out_split: val set
+#     train_splits = [] # TRAIN SET
+#     valid_splits = [] # VALID SET
+#     holdout_fraction = 0.1 # train:valid = 9:1
+
+#     for _, env in enumerate(train_dataset): # train_dataset, dataset
+#         if args["class_balance"]:
+#             valid_set, train_set = class_split_dataset(env, args['n_classes'], holdout_fraction, args['seed']) 
+#         else:
+#             valid_set, train_set = split_dataset_ratio(env, holdout_fraction, args['seed']) 
+            
+#         # for class balance
+#         train_set_weights = make_weights_for_balanced_classes(train_set)
+#         valid_set_weights = make_weights_for_balanced_classes(valid_set)
+#         train_splits.append((train_set, train_set_weights))
+#         valid_splits.append((valid_set, valid_set_weights))
+                
+#     ### loader
+#     sampler = torch.utils.data.WeightedRandomSampler([weights for (_, weights) in train_splits], 
+#                                                      replacement=True, 
+#                                                      num_samples=args['batch_size'])
+#     train_set = torch.utils.data.ConcatDataset([env for (env, _) in train_splits])
+#     train_loaders = torch.utils.data.DataLoader(train_set, batch_size=args['batch_size'],
+#                                             shuffle=True, pin_memory=True, sampler=sampler, 
+#                                             num_workers=args['num_workers']) # valid loader
+
+#     valid_set = torch.utils.data.ConcatDataset([env for (env, _) in enumerate(valid_splits)])
+#     valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=args['valid_batch_size'],
+#                                             shuffle=False, pin_memory=True, 
+#                                             num_workers=args['num_workers']) # valid loader
+    
+#     test_set = torch.utils.data.ConcatDataset(test_set)
+#     test_loader = torch.utils.data.DataLoader(test_set, batch_size=args['test_batch_size'], 
+#                                             shuffle=False, pin_memory=True, 
+#                                             num_workers=args['num_workers']) # test loader
+            
+#     return train_loaders, valid_loader, test_loader
 
 
 '''

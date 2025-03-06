@@ -75,6 +75,14 @@ def set_args():
     parser.add_argument('--lambda_grl', default=0.3, help='weight regularization for gradient reversal layer')
     parser.add_argument('--tokenize_num', default=False, help='whether to tokenize numerical feature (num*weight)')
     parser.add_argument('--block_name', default=None, help='what do with the ResBlock')
+    # Transformer
+    parser.add_argument('--Trans_n_layers', default=6, help='multi-head attention n_layer')
+    parser.add_argument('--Trans_n_heads', default=4, help='multi-head attention n_head (d_token % n_heads==0)')
+    parser.add_argument('--Trans_d_token', default=64, help='shape (d_token % n_heads==0)')
+    
+    # LSTM
+    parser.add_argument('--lstm_input_dim', default=256, help='lstm input dimension')
+    parser.add_argument('--lstm_n_layers', default=2, help='multi-head attention n_layer')
     
     parser.add_argument('--select_feature', default='', help='all, atleast, less')    
     parser.add_argument('--less_fraction', default=0.3, help='select feature that consists at least certain amount of values')    

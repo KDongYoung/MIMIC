@@ -38,47 +38,19 @@ def load_model(args): # load model
     elif args['model_name']=="mlp2":
         from Networks.MLP_2layer import shallowLinearModel_2lowlayer
         model=shallowLinearModel_2lowlayer(args)
-
-    elif args['model_name']=="resnet_org8":
-        from Networks.ResNet_org import resnet_8
-        model=resnet_8(args)
-    elif args['model_name']=="resnet_org18":
-        from Networks.ResNet_org import resnet_18
-        model=resnet_18(args)
-    elif args['model_name']=="resnet_preact8":
-        from Networks.ResNet_preActive import resnet_8
-        model=resnet_8(args)
-    elif args['model_name']=="resnet_preact18":
-        from Networks.ResNet_preActive import resnet_18
-        model=resnet_18(args)
-    elif args['model_name']=="resnet_like8":
-        from Networks.ResNet_like import resnet_8
-        model=resnet_8(args)
-    elif args['model_name']=="resnet_like18":
-        from Networks.ResNet_like import resnet_18
-        model=resnet_18(args)
     
-    elif args['model_name']=="resnet8_dann":
-        from Networks.ResNet_like_dann import resnet_8
-        model=resnet_8(args)
-    elif args['model_name']=="resnet18_dann":
-        from Networks.ResNet_like_dann import resnet_18
-        model=resnet_18(args)    
-    
-    
-    elif args['model_name']==f"tabnet_{args['n_d']}_{args['n_a']}_{args['n_steps']}":        
-        # from Networks.TabNet import TabNetClassifier
-        from pytorch_tabnet.tab_model import TabNetClassifier
-        model=TabNetClassifier(optimizer_fn=torch.optim.Adam, optimizer_params=dict(lr=args['lr']), 
-                                scheduler_params={"T_max":100//args['checkpoint']}, 
-                                scheduler_fn=torch.optim.lr_scheduler.CosineAnnealingLR,  
-                                mask_type='entmax', n_d=args['n_d'], n_a=args['n_a'], n_steps=args['n_steps'], 
-                                cat_idxs = [], cat_dims= [],
-                                device_name="cuda") # 'entmax'
-        
-    elif args['model_name']=='ft_transformer':
-        from Networks.FT_Transformer import Transformer
+    elif args['model_name']=='transformer':
+        from Networks.Transformer import Transformer
         model = Transformer(args)
+    elif args['model_name']=='lstm1':
+        from Networks.LSTM import lstm_1layers
+        model = lstm_1layers(args)
+    elif args['model_name']=='lstm2':
+        from Networks.LSTM import lstm_2layers
+        model = lstm_2layers(args)
+    elif args['model_name']=='lstm3':
+        from Networks.LSTM import lstm_3layers
+        model = lstm_3layers(args)
     else:
         assert "Model not loaded....."
         
@@ -88,7 +60,7 @@ def find_model_type(model_name): # load model
     if model_name in ["rf", "xgb", "lightGBM", "svm", "lr", "knn", "gbt", 'dt']:
         return "ML"
         
-    elif "resnet" in model_name or "mlp" in model_name or "tabnet" in model_name or model_name == 'ft_transformer':
+    elif "lstm" in model_name or "transformer" in model_name:
         return "DL"
     else:
         assert "Unknown Model....."

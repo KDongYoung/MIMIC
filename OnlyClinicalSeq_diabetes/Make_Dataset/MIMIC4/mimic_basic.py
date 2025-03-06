@@ -125,16 +125,26 @@ def basic(icu_path, hosp_path, save_path, args, column_dictionary):
     basic[['subject_id','hadm_id']].drop_duplicates().to_csv(f"{save_path}/mimic4_subject.csv", index=False)
     print(f'{datetime.now()-start} (hh:mm:ss.ms)')
     
+    # column_types = {
+    #     "numerical": ['calculated_age', 'dur_icu', 'dur_inhospital', 'dur_ed', 'mortality'],
+    #     "categorical": ['gender', 'mortality', 'first_careunit', 'last_careunit', # 'admission_type', 
+    #                     'anchor_year_group', 'discharge_location', 'admission_location', 'hospital_expire_flag'],
+    #     "id": ['subject_id', 'hadm_id'],
+    #     "time": ['admit_date_hour', 'disch_date_hour', 'in_date_hour', 
+    #              'out_date_hour', 'edreg_date_hour', 'edout_date_hour']
+    #     }
+    
     column_types = {
-        "numerical": ['calculated_age', 'dur_icu', 'dur_inhospital', 'dur_ed', 'mortality'],
-        "categorical": ['gender', 'mortality', 'first_careunit', 'last_careunit', # 'admission_type', 
-                        'anchor_year_group', 'discharge_location', 'admission_location', 'hospital_expire_flag'],
-        "id": ['subject_id', 'hadm_id'],
-        "time": ['admit_date_hour', 'disch_date_hour', 'in_date_hour', 
-                 'out_date_hour', 'edreg_date_hour', 'edout_date_hour']
-        }
+        **{c: "numerical" for c in ['calculated_age', 'dur_icu', 'dur_inhospital', 'dur_ed', 'mortality']},
+        **{c: "categorical" for c in ['gender', 'mortality', 'first_careunit', 'last_careunit', # 'admission_type', 
+                                      'anchor_year_group', 'discharge_location', 'admission_location', 'hospital_expire_flag']},
+        **{c: "id" for c in ['subject_id', 'hadm_id']},
+        **{c: "time" for c in ['admit_date_hour', 'disch_date_hour', 'in_date_hour', 
+                               'out_date_hour', 'edreg_date_hour', 'edout_date_hour']},
+       
+    }
 
-    column_dictionary = {row: col_type for col_type, rows in column_types.items() for row in rows}
+    column_dictionary.update({row: col_type for col_type, rows in column_types.items() for row in rows})
     
     return admissions, column_dictionary
     

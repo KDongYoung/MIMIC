@@ -6,6 +6,16 @@ from datetime import datetime
 import warnings
 warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
 
+def class_division(df, target): ## sequence를 만든 뒤에 하는 것이 좋아보일듯
+    
+    if target=="hemoglobin":
+        ## hemoglobin A1c
+        
+        df.loc[(0<df[target]) & (df[target]<6.5), target]=0 # 6.5 미만은 정상 혈당
+        df.loc[df[target]>=6.5, target]=1 # 6.5 미만은 비정상 혈당
+        n_class=2
+        
+    return df, n_class
 
 def data2seq(args, dataset):
     
@@ -21,22 +31,24 @@ def data2seq(args, dataset):
         dataset[col] = pd.to_datetime(dataset[col]) 
     
     """        ###### hw, chartevents, outputevents ######        """
-    hws=pd.read_csv(f"{args['save_data']}/hws.csv", low_memory = False)
-    bps=pd.read_csv(f"{args['save_data']}/bps.csv", low_memory = False)
-    chartevents=pd.read_csv(f"{args['save_data']}/chartevents.csv", low_memory = False)
-    outputevents=pd.read_csv(f"{args['save_data']}/outputevents.csv", low_memory = False)
+    hws = pd.read_csv(f"{args['save_data']}/hws.csv", low_memory = False)
+    bps = pd.read_csv(f"{args['save_data']}/bps.csv", low_memory = False)
+    chartevents = pd.read_csv(f"{args['save_data']}/chartevents.csv", low_memory = False)
+    outputevents = pd.read_csv(f"{args['save_data']}/outputevents.csv", low_memory = False)
+    hemoglobins = pd.read_csv(f"{args['save_data']}/labevents_value.csv", low_memory = False)
     
-    dataframes = [hws, bps, chartevents, outputevents] # , labevents_flag
+    dataframes = [hws, bps, chartevents, outputevents, hemoglobins] # , labevents_flag
     for df in dataframes:
         df.rename(columns={'date_hour': 'time'}, inplace=True)
         df['time'] = pd.to_datetime(df['time'])         
     del dataframes    
     hws = hws.dropna(subset=hws.columns)
+    hemoglobins.rename(columns={'value': 'HbA1c'}, inplace=True)
     
     index_cols = ["subject_id", 'hadm_id', 'time']
-    each_csv_columns = {"outputevents":[col for col in outputevents.columns if col not in index_cols], 
-                        "chartevents":[col for col in chartevents.columns if col not in index_cols], 
-                        "basic":[], "inputevents":[]}    
+    each_csv_columns = {"outputevents": [col for col in outputevents.columns if col not in index_cols], 
+                        "chartevents": [col for col in chartevents.columns if col not in index_cols], 
+                        "basic": [], "inputevents": [], 'hemoglobins': ['HbA1c']}    
     output_chart = pd.merge(outputevents, chartevents, on=index_cols, how='outer', suffixes=('_output', '_chart'))
     print(f"Merged hw, output, chartevents, {datetime.now()}") 
     del outputevents, chartevents 
@@ -62,15 +74,24 @@ def data2seq(args, dataset):
     """
     os.makedirs(f"{args['save_data']}/sequence", exist_ok=True)
     if "sequence_0.csv" not in os.listdir(f"{args['save_data']}/sequence"):
-        make_basic_sequence(dataset, transfer, inputevents, hws, bps, output_chart, index_cols, args['save_data'], category_dictionary, each_csv_columns)   
+        make_basic_sequence(dataset, transfer, inputevents, hemoglobins, hws, bps, output_chart, index_cols, args['save_data'], category_dictionary, each_csv_columns)   
     print(f"Finished making sequence dataset, {datetime.now()}") # 12시간 걸림
     
-def make_basic_sequence(dataset, transfer, inputevents, hws, bps, output_chart, index_cols, save_path, category_dictionary, each_csv_columns):
+def make_basic_sequence(dataset, transfer, inputevents, hemoglobins, hws, bps, output_chart, index_cols, save_path, category_dictionary, each_csv_columns):
     
     total = []
     k=0
     print(f"Start making, {datetime.now()}")
+    
+    """  #### Hemoglobin A1c 값이 있는 사람들 ####  """
+    dataset = dataset[dataset["subject_id"].isin(hemoglobins['subject_id']) & dataset["hadm_id"].isin(hemoglobins['hadm_id'])]
+    cnt = 0 ## 5만명당  csv 저장
     for i, row in dataset.iterrows():
+        """  #### Hemoglobin A1c 값이 있는 사람들 ####  """
+        hemoglobin = hemoglobins[(hemoglobins['subject_id'] == row['subject_id']) & (hemoglobins['hadm_id'] == row['hadm_id'])]
+        if hemoglobin.empty:
+            continue
+        
         if row['admit_date_hour'] > row['disch_date_hour']: continue # 사망하고 도착하는 경우?
         
         sbj_df = split_to_hourly_intervals(row)
@@ -85,7 +106,7 @@ def make_basic_sequence(dataset, transfer, inputevents, hws, bps, output_chart, 
         sbj_df.loc[:, 'calculated_age'] = row['calculated_age']
         sbj_df.loc[:, 'gender'] = row['gender']
         sbj_df.loc[:, 'anchor_year_group'] = row['anchor_year_group']
-        sbj_df.loc[:, 'mortality'] = row['mortality']
+        # sbj_df.loc[:, 'mortality'] = row['mortality']
         
         if not pd.isna(row['dur_ed']):
             sbj_df.loc[(row['edreg_date_hour'] <= sbj_df['time']) & (sbj_df['time'] <= row['edout_date_hour']), 'location'] = category_dictionary["ED"]
@@ -103,11 +124,14 @@ def make_basic_sequence(dataset, transfer, inputevents, hws, bps, output_chart, 
                 # if row['first_careunit'] == next((k for k, v in category_dictionary['first_careunit'].items() if v == "None"), None):
                 sbj_df.loc[(row['in_date_hour'] <= sbj_df['time']) & (sbj_df['time'] <= row['out_date_hour']), 'location'] = row['first_careunit']
         
+        """        ###### Hemoglobin A1c ######        """
+        sbj_df = sbj_df.merge(hemoglobin[['time', 'HbA1c']], on='time', how='left')
         
+        """        ###### hws ######        """
         new_columns = sbj_df[['subject_id', 'hadm_id', 'time']]
         new_columns['time_hour'] = new_columns['time']
         new_columns['time'] = pd.to_datetime(new_columns['time'].dt.date)
-        """        ###### hws ######        """
+        
         hw = hws[(hws['subject_id'] == row['subject_id']) & (hws['hadm_id'] == row['hadm_id'])]
         hw = hw.groupby('time', as_index=False).mean()
         if not hw.empty:
@@ -137,7 +161,6 @@ def make_basic_sequence(dataset, transfer, inputevents, hws, bps, output_chart, 
         new_columns = pd.concat([sbj_df[['subject_id', 'hadm_id', 'time']], new_columns], axis=1)
         in_event = inputevents[(inputevents['subject_id'] == row['subject_id']) & (inputevents['hadm_id'] == row['hadm_id'])]
 
-        
         for _, in_row in in_event.iterrows():
             if new_columns.loc[new_columns['time'] == in_row['start_date_hour'], in_row['unique_label']].any():
                     condition = (new_columns['time'] > in_row['start_date_hour']) & (new_columns['time'] <= in_row['end_date_hour'])
@@ -151,18 +174,19 @@ def make_basic_sequence(dataset, transfer, inputevents, hws, bps, output_chart, 
            print(row['subject_id']) 
         sbj_df = pd.concat([sbj_df, new_columns.drop(columns=['subject_id', 'hadm_id', 'time'])], axis=1)
         
+        
         before = sbj_df.shape[0]
         sbj_df = sbj_df.dropna(subset='subject_id')
         
         if sbj_df.shape[0] != before:
             print(f"{before} -> {sbj_df.shape[0]}")
-                       
-        if i%1000 == 0:
-            print(f"{i} row making... {datetime.now()}")               
-        total.append(sbj_df)
-        # sbj_df.to_csv(f"{args['save_data']}/sequence/{row['subject_id']}_{row['hadm_id']}.csv", index=False)
         
-        if ((i%5000 == 0) & (i != 0)) | (i==(dataset.shape[0]-1)):            
+        cnt += 1               
+        if cnt%500 == 0:
+            print(f"{cnt} subject making... {datetime.now()}")               
+        total.append(sbj_df)
+        
+        if ((cnt%5000 == 0) & (cnt != 0)) | (i==(dataset.shape[0]-1)):            
             concat_df = pd.concat(total, ignore_index=True)
             
             df = pd.merge(concat_df, output_chart, on=index_cols, how='left', suffixes=('_input', '_output_chart'))
@@ -170,7 +194,7 @@ def make_basic_sequence(dataset, transfer, inputevents, hws, bps, output_chart, 
             k+=1
             total = []
             del df
-        
+    
         if i==(dataset.shape[0]-1) and total != []:            
             concat_df = pd.concat(total, ignore_index=True)
             
@@ -213,3 +237,4 @@ def split_to_hourly_intervals(row):
         "hadm_id": row["hadm_id"],
         "time": time_range
     })
+    

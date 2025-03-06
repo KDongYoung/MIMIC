@@ -62,9 +62,6 @@ def chartevents(icu_path, save_path, d_items, column_dictionary):
     height_weight_df=chartevent_pivot[['subject_id', 'hadm_id', 'date_hour', 'Height', 'Height (cm)', 'Admission Weight (lbs.)', 'Admission Weight (Kg)']]    
     height_weight_df.to_csv(f"{save_path}/chart_hw.csv", index=False)
     chartevent_pivot.drop(columns=['Height', 'Height (cm)', 'Admission Weight (lbs.)', 'Admission Weight (Kg)'], inplace=True)
-    
-    # chartevent_pivot = chartevent_pivot.loc[:, chartevent_pivot.isnull().mean()<0.9] 
-    # chartevent_pivot = chartevent_pivot.fillna(0)
     chartevent_pivot.to_csv(f"{save_path}/chartevents.csv", index=False)
         
     print(f'Duration: {datetime.now()-start} (hh:mm:ss.ms)')
@@ -80,7 +77,7 @@ def convert_to_numeric(val):
     except ValueError:
         return float('nan')
 
-def chart_height_weight_bp(hosp_path, save_path, args):
+def chart_height_weight_bp(hosp_path, save_path, column_dictionary):
     print("Make height_weight dataset...")
     omr=pd.read_csv(gzip.open(f"{hosp_path}/omr.csv.gz"), low_memory = False)
     omr.rename(columns={'chartdate': 'date_hour'}, inplace=True)
@@ -148,4 +145,10 @@ def chart_height_weight_bp(hosp_path, save_path, args):
     bp.to_csv(f"{save_path}/bps.csv", index=False)
     print("Finished bp dataset")
     
-    return args
+    column_types = {
+        **{c: "numerical" for c in ['Weight', 'Height', 'BPs', 'BPd']}
+    }
+    
+    column_dictionary.update(column_types) 
+
+    return column_dictionary

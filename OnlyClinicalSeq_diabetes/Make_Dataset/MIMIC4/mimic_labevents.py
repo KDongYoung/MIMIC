@@ -9,7 +9,7 @@ warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning
 from Make_Dataset.MIMIC4.mimic_utils import fill_nan_hadm_id #, fill_na_within_group
 
     
-def labevents(hosp_path, save_path, admission, column_dictionary):
+def labevents(hosp_path, save_path, admission, column_dictionary=None):
     print(f"Preprocess labevents.csv")
     start=datetime.now()
     print(start)
@@ -38,22 +38,15 @@ def labevents(hosp_path, save_path, admission, column_dictionary):
     
         cols = ['storetime']
         df[cols] = df[cols].apply(lambda col: pd.to_datetime(col))
-        
+        df['date_hour'] = df['storetime'].dt.floor('H')
+    
         df = pd.merge(df, hemoglobin[['itemid', 'label']], on=['itemid'], how='left')
         # df = pd.merge(df, d_labitems[['itemid', 'label']], on=['itemid'], how='left')
         df.dropna(subset=['itemid', 'label'], inplace=True)
         df.drop(columns='itemid', inplace=True)
         labevents_result = pd.concat([labevents_result, df])
-
-    # # chartevents lab과 labevent 값들과 결합 
-    # chart_lab = chart_lab[['subject_id', 'hadm_id', 'date_hour', 'unique_label', 'valuenum']]
-    # chart_lab.columns=['subject_id', 'hadm_id', 'date_hour', 'label', 'valuenum']
     
-    # labevents_result['date_hour'] = labevents_result['storetime'].dt.floor('H')
-    # labevents_result.drop(columns=['storetime'], inplace=True)
-    # labevents=pd.concat([chart_lab, labevents_result]) 
-    
-    labevents=labevents.drop_duplicates(subset=['subject_id', 'hadm_id', 'date_hour', 'label', 'valuenum'])
+    labevents=labevents_result.drop_duplicates(subset=['subject_id', 'hadm_id', 'date_hour', 'label', 'valuenum'])
     print(datetime.now())
 
     # 같은 label은 같은 range를 가지고 있지 않을까
@@ -62,7 +55,6 @@ def labevents(hosp_path, save_path, admission, column_dictionary):
                                     .transform(lambda x: x.fillna(method='ffill').fillna(method='bfill')))
     labevents['ref_range_upper'] = (labevents.groupby('label')['ref_range_upper']
                                     .transform(lambda x: x.fillna(method='ffill').fillna(method='bfill')))
-    # labevents = labevents.groupby(['label']).apply(fill_na_within_group) 
     
     ## ref_range_lower, ref_range_upper 값이 없는 row flag를 unknown으로 추가하기- 한쪽만 null인 곳은 없음
     # range는 없는데, flag는 abnormal로 적혀있는 row가 있음 (ex, Microcytes, Macrocytes)

@@ -20,7 +20,8 @@ class MIMIC4_Dataset():
         save_data_list=os.listdir(self.args['save_data'])
        
         self.ditems()
-        self.basic() 
+        if f"mimic4_{args['target']}" not in save_data_list:
+            self.basic() 
             
         if "icd.csv" not in save_data_list:
             self.diagnoses_icd() 
@@ -34,7 +35,7 @@ class MIMIC4_Dataset():
         if "chart_hw.csv" not in save_data_list:
             self.height_weight_bp()
           
-        if not all(file in save_data_list for file in ["labevents_value.csv"]) and self.args['labevents']: # , "labevents_flag.csv", "labevents_priority.csv"
+        if self.args['labevents']: # , "labevents_flag.csv", "labevents_priority.csv"
             self.labevents()
         if "microbiologyevents.csv" not in save_data_list and self.args['microbiologyevents']:
             self.microbiologyevents()                           
@@ -76,7 +77,7 @@ class MIMIC4_Dataset():
         
     def height_weight_bp(self):
         from Make_Dataset.MIMIC4.mimic_chartevents import chart_height_weight_bp
-        self.args = chart_height_weight_bp(self.hosp_path, self.save_path, self.args)  # 키와 몸무게 통일
+        self.column_directory = chart_height_weight_bp(self.hosp_path, self.save_path, self.column_dictionary)  # 키와 몸무게 통일
         
     def labevents(self):
         from Make_Dataset.MIMIC4.mimic_labevents import labevents

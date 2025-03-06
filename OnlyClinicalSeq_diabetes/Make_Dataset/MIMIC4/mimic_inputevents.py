@@ -53,28 +53,3 @@ def apply_condition_and_pivot(df, index_cols, column, values, suffix, input_leve
     pivot_df = df.pivot(index=index_cols, columns=column, values=values).reset_index()
     pivot_df.columns = [f"{col}_{suffix}" if col not in index_cols else col for col in pivot_df.columns]
     return pivot_df
-
-
-
-
-
-    # inputevents['amount'] = inputevents.apply(lambda row: row['amount_median'] if row['unique_label'] not in input_level else row['amount_mean'], axis=1)
-    # inputevents['dur_before_input'] = inputevents.apply(lambda row: row['dur_before_median'] if row['unique_label'] not in input_level else row['dur_before_mean'], axis=1)
-    # inputevents['dur_input'] = inputevents.apply(lambda row: row['dur_input_median'] if row['unique_label'] not in input_level else row['dur_input_mean'], axis=1)
-    # inputevents['amountMinRate'] = inputevents.apply(lambda row: row['amountMinRate_median'] if row['unique_label'] not in input_level else row['amountMinRate_mean'], axis=1)
-    # inputevents.drop(columns=['amount_median', 'amount_mean', 'dur_before_median', 'dur_before_mean', 'dur_input_median', 'dur_input_mean', 'amountMinRate_median', 'amountMinRate_mean'], inplace=True)
-    # inputevents = inputevents[inputevents['amount'].notnull() & inputevents['dur_input'].notnull() & inputevents['amountMinRate'].notnull()  & inputevents['dur_before_input'].notnull()]
-    
-    # inputevents_pivot_amount = inputevents.pivot(index=['subject_id', 'hadm_id'], columns='unique_label', values='amount').reset_index()
-    # inputevents_pivot_amount.columns = [f"{col}_amount" if col not in ['subject_id', 'hadm_id'] else col for col in inputevents_pivot_amount.columns]
-    # inputevents_pivot_inputdur = inputevents.pivot(index=['subject_id', 'hadm_id'], columns='unique_label', values='dur_input').reset_index()
-    # inputevents_pivot_inputdur.columns = [f"{col}_durinput" if col not in ['subject_id', 'hadm_id'] else col for col in inputevents_pivot_inputdur.columns]
-    # inputevents_pivot_rate = inputevents.pivot(index=['subject_id', 'hadm_id'], columns='unique_label', values='amountMinRate').reset_index()
-    # inputevents_pivot_rate.columns = [f"{col}_amountrate" if col not in ['subject_id', 'hadm_id'] else col for col in inputevents_pivot_rate.columns]
-    # inputevents_pivot_beforedur = inputevents.pivot(index=['subject_id', 'hadm_id'], columns='unique_label', values='dur_before_input').reset_index()
-    # inputevents_pivot_beforedur.columns = [f"{col}_durbeforeinput" if col not in ['subject_id', 'hadm_id'] else col for col in inputevents_pivot_beforedur.columns]
-    
-    # inputevents_pivot = inputevents_pivot_amount.merge(inputevents_pivot_inputdur, on=['subject_id', 'hadm_id'])
-    # inputevents_pivot = inputevents_pivot.merge(inputevents_pivot_rate, on=['subject_id', 'hadm_id'])
-    # inputevents_pivot = inputevents_pivot.merge(inputevents_pivot_beforedur, on=['subject_id', 'hadm_id'])
-    
