@@ -39,6 +39,7 @@ def set_args():
     parser.add_argument('--month', default=3, help='ㅁ month after prognostic ')
     parser.add_argument('--microbiologyevents', default=False, help='whether to add microbiologyevents')
     parser.add_argument('--labevents', default=True, help='whether to add labevents')
+    parser.add_argument('--seq_length', type=int, default=3, help='sequence length')
     
     ## DA/DG
     parser.add_argument('--domain', default=[], help="disease")
@@ -83,6 +84,7 @@ def set_args():
     # LSTM
     parser.add_argument('--lstm_input_dim', default=256, help='lstm input dimension')
     parser.add_argument('--lstm_n_layers', default=2, help='multi-head attention n_layer')
+    parser.add_argument('--lstm_hidden_unit_factor', default=1.5, help='hidden unit 생성')
     
     parser.add_argument('--select_feature', default='', help='all, atleast, less')    
     parser.add_argument('--less_fraction', default=0.3, help='select feature that consists at least certain amount of values')    
@@ -115,7 +117,7 @@ def set_args():
     parser.add_argument('--wandb_key', default="", help='which project')
     parser.add_argument('--tensorboard', default="", help='which wandb run')
   
-    
+    parser.add_argument('--stride', type=int, default=5, help='')
     parser.add_argument('--model_num', type=int, default=0, help='which model 임시')
     
     args = parser.parse_args()

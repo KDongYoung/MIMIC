@@ -1,14 +1,13 @@
+#!/bin/bash
+
 echo "MIMIC dataset"
 SEED=2028
-target='mortality'
 
-for m_num in 0
-do  
-    for imputation in 'median_median' 'simpleimputer_flagmedian'
-    do 
-        gpu_idx=1
-        CUDA_VISIBLE_DEVICES=$gpu_idx python 2.ChronicDisease/OnlyClinical/TotalMain.py \
-        --cuda_num=$gpu_idx --seed=$SEED --model_num=$m_num --target=$target --imputation=$imputation &
-    done
-done
+CUDA_VISIBLE_DEVICES=3 python /opt/workspace/4.MIMIC/OnlyClinicalSeq_diabetes/TotalMain.py \
+--cuda_num=3 --seed=$SEED --model_num=0 &
+CUDA_VISIBLE_DEVICES=3 python /opt/workspace/4.MIMIC/OnlyClinicalSeq_diabetes/TotalMain.py \
+--cuda_num=3 --seed=$SEED --model_num=1 &
+CUDA_VISIBLE_DEVICES=3 python /opt/workspace/4.MIMIC/OnlyClinicalSeq_diabetes/TotalMain.py \
+--cuda_num=3 --seed=$SEED --model_num=2 &
+
 echo "MIMIC dataset End"

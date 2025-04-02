@@ -118,8 +118,6 @@ class Trainer():
         time_cost=[]
         outputs=[]
         targets=[]
-        preds=[]
-        
         with torch.no_grad(): 
             for datas in loader:
                 s_time=time.time()
@@ -132,10 +130,8 @@ class Trainer():
                 time_cost.append(e_time-s_time)
                 
                 outputs.append(output)
-                preds.append(output.argmax(dim=1, keepdim=False)) 
-                  
+            
         outputs=torch.cat(outputs)
-        preds=torch.cat(preds)
         targets=torch.cat(targets)
         
         MSE_LOSS = torch.sqrt(lossfn(outputs.cpu(), targets))
@@ -144,7 +140,7 @@ class Trainer():
         mae_lossfn = nn.L1Loss()
         MAE_LOSS = mae_lossfn(outputs.cpu(), targets)
         
-        print(phase.capitalize(), f'RMSE Loss: {MSE_LOSS.item():.4f}, MAE Loss: {MAE_LOSS.item():.4f}, MAPE Loss: {MAPE_LOSS.item():.4f}')
+        print(phase.capitalize(), f'RMSE Loss: {MSE_LOSS.item():.4f}, MAE Loss: {MAE_LOSS.item():.4f}, MAPE Loss: {MAPE_LOSS.item()*100:.2f}')
          
         # # if self.model_type=="DL":  
         self.write_tensorboard(phase=phase, step=step, mse=MSE_LOSS, mape=MAPE_LOSS, mae=MAE_LOSS)

@@ -7,7 +7,10 @@ import datetime
 import Data_Load.Dataloader as Dataloader
 from Utils.Load_model import load_model, find_model_type
 import Trainer 
-from sklearn.model_selection import KFold, StratifiedKFold
+from sklearn.model_selection import KFold, StratifiedKFold, GroupKFold
+
+import sys
+from Utils.print_utils import DualLogger
 
 def Experiment(args, path):
     
@@ -60,11 +63,12 @@ def Experiment(args, path):
 def start_Training(args):
     
     DATASET = Dataloader.make_dataset(args)
+    person_id = [id[2] for id in DATASET]
         
     total_valid_best = [] 
     
-    kfold = KFold(n_splits=args['kfold'], shuffle=True, random_state=args['seed'])
-    kfold_split = kfold.split(DATASET)
+    kfold = GroupKFold(n_splits=args['kfold'])
+    kfold_split = kfold.split(DATASET, groups=person_id)
     
     for i, (train_index, test_index) in enumerate(kfold_split): 
         print(f"{len(train_index)} Train 데이터, {len(test_index)} Test 데이터")
@@ -105,13 +109,13 @@ def Main(args, model_name):
     args['model_type'] = find_model_type(args["model_name"])    
 
     exp_type=(
-        f"{args['model_name']}_"
+        f"{args['seq_length']}_{args['stride']}_{args['model_name']}_"
         f"c{args['train_valid_class_balance']}_batch{args['batch_size']}_{args['icustay_day']*24}ICU"
     )
     args['result_dir']=exp_type
         
     ## 결과 입력 폴더 생성
-    dir = f"{args['steps']}_{args['batch_size']}_{args['optimizer']}_{args['lr']}_{args['imputation']}"
+    dir = f"{args['steps']}_{args['batch_size']}_{args['lr']}_{args['lstm_hidden_unit_factor']}"
     path = f"{args['save_model']}/{dir}"
     
     if not os.path.isdir(path):
@@ -122,6 +126,10 @@ def Main(args, model_name):
         else:
             for metric in args['eval_metric']:
                 os.makedirs(f"{path}/Results/{metric}", exist_ok=True)
+    
+    # print 출력 결과를 로그 파일로 저장
+    sys.stdout = DualLogger(f"{path}/Logs/{exp_type}.txt")  # 표준 출력 리디렉션
+    sys.stderr = sys.stdout
     
     print(f"{args['seed']} / {args['lr']} / {args['dataset_name']} {path} / {exp_type}")   
     
@@ -136,7 +144,7 @@ def Main(args, model_name):
             for fold in range(args['kfold']):
                 f.write(f"{fold+1} FOLD: RMSE: {part_df.iloc[fold, 1]:.4f}, MAPE: {part_df.iloc[fold, 2]:.4f}\n") # save test performance   
         
-        part_df.columns = ['Valid_best', 'RMSE', 'MAPE', 'Cost']
+        part_df.columns = ['Valid_best', 'RMSE', 'MAPE', 'MAE', 'Cost']
         part_df.index = [metric_name] * args['kfold']
         
         result = pd.concat([pd.DataFrame(part_df.mean()).T.set_axis([f"Avg_{col}" for col in part_df.columns], axis=1),

@@ -16,46 +16,53 @@ def main(args):
     }
     args['column_info'].update(column_types) 
     
-    icd=pd.read_csv(f"{args['save_data']}/icd.csv", low_memory = False)
-    icd=find_icd(args['data_root'], args['save_data'], args['total_path'], icd, args['domain'])  
-    
     with open(args['save_data'] + '/category_encoding.txt', 'r') as f:
         line=f.read().split("\n")
     category_dictionary = ast.literal_eval(line[0])
     
-    DOMAIN = []
-    sbj_cnt = 0
-    for d_name in sorted(os.listdir(f"{args['save_data']}/sequence")):
-        print(f"{'-'*5} {d_name} {'-'*5}")
-        dataset = pd.read_csv(f"{args['save_data']}/sequence/{d_name}")
+    if not os.path.exists(f"{args['save_data']}/domain/{args['domain']}.csv"):
+        icd=pd.read_csv(f"{args['save_data']}/icd.csv", low_memory = False)
+        icd=find_icd(args['data_root'], args['save_data'], args['total_path'], icd, args['domain'])  
         
-        dataset['gender'].replace({'M':0, 'F':1}, inplace=True)
-        dataset['anchor_year_group'].replace({'2008 - 2010':0 , '2011 - 2013':1 ,'2014 - 2016':2, '2017 - 2019':3}, inplace=True)
-
-        dataset['unique_id']=dataset['subject_id'].astype(str) + "_" + dataset['hadm_id'].astype(str)
-        
-        domain = pd.merge(dataset, icd, on=['subject_id', 'hadm_id'])
-
-        domain.drop(columns=['icd_code', 'long_title', 'Feeding Weight', 'Daily Weight'], inplace=True)
-        
-        if args['over_age']: domain=over_age(domain) # admit 나이 기준
-        if args['over_height_over_weight']: domain=over_height_over_weight(domain)
-        if args['over_24_icustay']: domain=over_24_icustay(domain, category_dictionary ,args["icustay_day"]) 
-        
-        domain = domain.drop(columns=['subject_id', 'hadm_id'])
-        null_unique_ids = domain.groupby('unique_id')['HbA1c'].apply(lambda x: x.isna().all())
-        null_unique_ids = null_unique_ids[null_unique_ids].index.tolist()
-        domain = domain[~domain['unique_id'].isin(null_unique_ids)]
-        DOMAIN.append(domain) # subject_id, hadm_id, icd_code 제외
-        
-        a = domain.drop_duplicates(subset=['unique_id'])
-        sbj_cnt += a.shape[0]
+        DOMAIN = []
+        sbj_cnt = 0
+        for d_name in sorted(os.listdir(f"{args['save_data']}/sequence")):
+            print(f"{'-'*5} {d_name} {'-'*5}")
+            dataset = pd.read_csv(f"{args['save_data']}/sequence/{d_name}")
             
-    print(sbj_cnt)    
+            dataset['gender'].replace({'M':0, 'F':1}, inplace=True)
+            dataset['anchor_year_group'].replace({'2008 - 2010':0 , '2011 - 2013':1 ,'2014 - 2016':2, '2017 - 2019':3}, inplace=True)
+
+            dataset['unique_id']=dataset['subject_id'].astype(str) + "_" + dataset['hadm_id'].astype(str)
+            
+            domain = pd.merge(dataset, icd, on=['subject_id', 'hadm_id'])
+
+            domain.drop(columns=['icd_code', 'long_title', 'Feeding Weight', 'Daily Weight'], inplace=True)
+            
+            if args['over_age']: domain=over_age(domain) # admit 나이 기준
+            if args['over_height_over_weight']: domain=over_height_over_weight(domain)
+            if args['over_24_icustay']: domain=over_24_icustay(domain, category_dictionary ,args["icustay_day"]) 
+            
+            domain = domain.drop(columns=['subject_id', 'hadm_id'])
+            null_unique_ids = domain.groupby('unique_id')['HbA1c'].apply(lambda x: x.isna().all())
+            null_unique_ids = null_unique_ids[null_unique_ids].index.tolist()
+            domain = domain[~domain['unique_id'].isin(null_unique_ids)]
+            DOMAIN.append(domain) # subject_id, hadm_id, icd_code 제외
+            
+            a = domain.drop_duplicates(subset=['unique_id'])
+            sbj_cnt += a.shape[0]
+                
+        print(sbj_cnt)    
+
+        df=pd.concat(DOMAIN)
+        
+        os.makedirs(f"{args['save_data']}/domain", exist_ok=True)
+        df.to_csv(f"{args['save_data']}/domain/{args['domain']}.csv", index=False)
     
+    else:
+        df = pd.read_csv(f"{args['save_data']}/domain/{args['domain']}.csv")
+        
     time=168
-    df=pd.concat(DOMAIN)
-    
     if 'mortality' in df.columns:
         df.drop(columns="mortality", inplace=True) ##dataset 만들때 생겨버림
     
@@ -66,7 +73,7 @@ def main(args):
     subject_mean = df.groupby('unique_id')['HbA1c'].mean() #.transform(lambda x: x.mean() if x.notna().any() else x)
     domain_targets = list(subject_mean)
     # df['HbA1c'] = df['HbA1c'].fillna(subject_mean)
-    domain_datasets = df
+    domain_datasets = df    
         
     rate = 0.1
     selected_feature_name = exist_feature_in_domains(domain_datasets, args['domain'], rate) # rate% 미만으로 비어 있는 feature 찾기
@@ -84,13 +91,13 @@ def main(args):
     # imputation
     domain = Imputation(domain, args['category'], args['number'], args['target'])
 
+    ### sliding window로 dataset 만들기
+    seq_length = args['seq_length']  # 원하는 seq_length (3, 6, 12 등으로 설정 가능)
     total_df= TabSeqDataset(domain.groupby('unique_id').apply(lambda x: x[[col for col in x.columns if col !="unique_id" and args['column_info'][col]=="categorical"] + \
                                                                           [col for col in x.columns if col !="unique_id" and args['column_info'][col]=="numerical"]].values), 
                                 domain_target, 
-                                domian_id) 
-                    #    # 사람마다 그룹화
-                    #    np.expand_dims(x[[col for col in x.columns if col !="unique_id" and args['column_info'][col]=="categorical"] + \
-                    #                                                                   [col for col in x.columns if col !="unique_id" and args['column_info'][col]=="numerical"]].values, axis=0)
+                                seq_length,
+                                args['stride']) 
 
     return total_df
 
@@ -129,7 +136,7 @@ def find_icd(data_root, save_root, total_path, data, domain_group):
             total_df=pd.concat([total_df, df], axis=0)
         
         # global filtering based on minimum 'seq_num' for each unique_id
-        total_df.reset_index(inplace=True) # reset index안하면 중복 index 존재
+        total_df.reset_index(inplace=True, drop=True) # reset index안하면 중복 index 존재
         total_df = total_df.loc[total_df.groupby("unique_id")["seq_num"].idxmin()]
         
         # SUBJECT는 확인용
@@ -145,7 +152,7 @@ def find_icd(data_root, save_root, total_path, data, domain_group):
         print(f"Total subject: {total_df.shape[0]}")
         total_df.to_csv(f"{save_root}/unique_ICD({','.join(domain_group)}).csv", index=False) # ({','.join(domain_group)})
     else:
-        total_df=pd.read_csv(f"{save_root}/unique_ICD({domain_group}).csv").drop(columns='index')   
+        total_df=pd.read_csv(f"{save_root}/unique_ICD({domain_group}).csv") #.drop(columns='index')   
             
     return total_df
     
@@ -183,21 +190,27 @@ def class_division(df, target):     ## MAPE를 계산하는 것으로 해당 함
 
     return df, n_class
 
+def create_sequences(data, seq_length):
+    X = []
+    for i in range(len(data) - seq_length + 1):
+        X.append(data[i:i+seq_length])
+    return np.array(X)
 
 
 
 
 
-    # 값이 있는 feature 찾기
-    domain2=df.groupby('unique_id').mean()
-    print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.1*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.1*domain2.shape[0])].columns}")
-    print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.2*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.2*domain2.shape[0])].columns}")
-    print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.3*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.3*domain2.shape[0])].columns}")
-    print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.4*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.4*domain2.shape[0])].columns}")
-    print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.5*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.5*domain2.shape[0])].columns}")
-    print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.6*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.6*domain2.shape[0])].columns}")
-    print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.7*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.7*domain2.shape[0])].columns}")
-    print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.8*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.8*domain2.shape[0])].columns}")
-    print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.9*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.9*domain2.shape[0])].columns}")
-    print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(1.0*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(1.0*domain2.shape[0])].columns}")
+
+    # # 값이 있는 feature 찾기
+    # domain2=df.groupby('unique_id').mean()
+    # print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.1*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.1*domain2.shape[0])].columns}")
+    # print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.2*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.2*domain2.shape[0])].columns}")
+    # print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.3*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.3*domain2.shape[0])].columns}")
+    # print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.4*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.4*domain2.shape[0])].columns}")
+    # print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.5*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.5*domain2.shape[0])].columns}")
+    # print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.6*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.6*domain2.shape[0])].columns}")
+    # print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.7*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.7*domain2.shape[0])].columns}")
+    # print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.8*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.8*domain2.shape[0])].columns}")
+    # print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(0.9*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(0.9*domain2.shape[0])].columns}")
+    # print(f"{len(domain2.loc[:, domain2.isnull().sum() < int(1.0*domain2.shape[0])].columns)} feature: {domain2.loc[:, domain2.isnull().sum() < int(1.0*domain2.shape[0])].columns}")
     

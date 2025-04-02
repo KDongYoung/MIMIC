@@ -13,6 +13,7 @@ class LSTM(nn.Module):
         
         self.lstm = nn.LSTM(input_dim, self.hidden_dim, num_layers=layers,
                             dropout = 0.2, batch_first=True)
+        self.dropout = nn.Dropout(0.2)  
         self.fc = nn.Linear(self.hidden_dim, output_dim, bias = True) 
     
     def init_hidden(self, batch_size):
@@ -25,7 +26,9 @@ class LSTM(nn.Module):
     def forward(self, x):
         h_t, c_t = self.init_hidden(x.size(0)) # # Reset hidden states for each batch
         x, _ = self.lstm(x, (h_t, c_t))
-        x = self.fc(x[:, -1])
+        x = self.dropout(x[:, -1])
+        x = self.fc(x)
+        # x = self.fc(x[:, -1])
         return x
 
 
@@ -34,15 +37,15 @@ class LSTM(nn.Module):
 
 def lstm_1layers(args):
     args['lstm_n_layers']=1
-    d_ffn_factor = 0.3
+    d_ffn_factor = args['lstm_hidden_unit_factor']
     return LSTM(args['feature_num'], d_ffn_factor, 1, args['lstm_n_layers'], args['device'])
 
 def lstm_2layers(args):
     args['lstm_n_layers']=2
-    d_ffn_factor = 0.3
+    d_ffn_factor = args['lstm_hidden_unit_factor']
     return LSTM(args['feature_num'], d_ffn_factor, 1, args['lstm_n_layers'], args['device'])
 
 def lstm_3layers(args):
     args['lstm_n_layers']=3
-    d_ffn_factor = 0.3
+    d_ffn_factor = args['lstm_hidden_unit_factor']
     return LSTM(args['feature_num'], d_ffn_factor, 1, args['lstm_n_layers'], args['device'])
